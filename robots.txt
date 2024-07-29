@@ -1,0 +1,1 @@
+Sitemap: https://l-gorman.github.io/statistical-rethinking-notes/sitemap.xml
