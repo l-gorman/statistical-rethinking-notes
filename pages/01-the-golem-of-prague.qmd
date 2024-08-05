@@ -1,6 +1,162 @@
 ---
-title: Golem of Prague
+title: Many models can be associated with many conclusions/data generating mechanisms
 ---
 
-* Models are unthinking tools/machines, do not contain conclusions
-* 
+[Lecture](https://www.youtube.com/watch?v=FdnMWdICdRs&list=PLDcUM9US4XdPz-KxHM4XHt7uUVGWWVSus)
+
+
+* Models are unthinking tools/machines, do not contain conclusions.
+
+
+## Zoo of statistical tests
+
+* Large number of statistical tests. 
+* They have very narrow uses.
+* Need to know the mechanics of how they work to know when to apply
+* Needs a lot of expertise which few of us have
+* Becomes difficult when pushing boundaries in research
+* Different streams/fields will have different terms for referring to the same thing (e.g. for models dealing with measurement error)
+
+## Falsification
+
+* Karl Popper: Science works through falsification of null hypothesis 
+* Deductive falsification impossible 
+    * Hypotheses are not models: Many models correspond to same hypothesis. Many hypotheses correspond to the same model
+    * Measurement matters: If the data/methods are not trustworthy, could have arrived at the same conclusion another way.
+
+
+::: {.callout-warning}
+Struggling to understand what he means here, and in the following subsections.
+
+Seems to say we need to move beyond the concept of rejecting a null. Not quite sure what he means here.
+::: 
+
+### Hypotheses are not models
+
+There is always an implicit model in research. Model of evidence...
+
+My take on this is you have your statistical model, e.g. the association between `x` and `y`. Your model could detect this, even in the scenario wher `y` is infact 'caused' by another variable `a`, which also causes `x`. Here one statistical model may correspond to different process models. 
+
+Thinking about models (M), process models (P) and hypotheses (H)
+
+1. Any M may correspond to more than one P
+2. Any H may correspond to more than one P
+3. Any M may correspond to more than one H
+
+::: {.callout-warning}
+What does this mean???
+::: 
+
+Is a process model our model of how the data were generated
+
+
+::: {.callout-note}
+Seems that McElreath is saying, we need more than null:
+
+1. We need Generative causal models (can generate synthetic data from it)
+2. Statistical models which can analyse the synthetic data to produce estimands (goals)
+3. Then apply data to produce estimates.
+
+::: 
+
+
+
+### Measurement Error
+
+Not discussed in first video lecture.
+
+Some hypothesese only take one observation to be proved wrong.
+Others take more. 
+Some are mistrusted due to measurment error.
+
+
+## Tools for Golem Engineering 
+
+* Bayesian data analysis: Good for uncertainty. 
+* Model Comparison
+* Multi-level models
+* Graphical Causal Models
+
+### Bayesian Models
+
+Advantages don't always mean bayesian modelling is right, just that scientists seem to find it more intuitive (e.g. interpretation of p-values or confidence intervals)
+
+Advantages not always apparent. 
+
+But it is a useful tool. Has accessible tools for dealing with things like measurement error.
+
+Bayesian statistical models are generative.
+
+### Model Comparison
+
+Selecting models based on which make good predictions, and which have the fewest parameters. **Cross validation and information criteria**. They also help spot highly influential observations.
+
+### Multi-level models
+
+Multi-level models help us do something about overfitting (ICs tell us about it). Using partial pooling.
+
+More models turn out to be multi-level than we think (imputation, measurement error...)
+
+Multi-level regression should be the default form of regression.
+
+### Graphical causal models
+
+Essentially dags
+
+Models that are incorrect can sometimes produce better predictions than those that are not. So prediction alone is not always useful.
+
+
+## Dags
+
+```{r}
+library(ggdag)
+library(dagitty)
+
+dag <-dagify(
+    c ~ a,
+    c ~ b,
+
+    x ~ a,
+    x ~ c,
+ 
+    y ~ x,
+    y ~ c,
+    y ~ b,
+
+  exposure = "x",
+  outcome = "y"
+)
+
+ggdag(dag, layout='circle')
+tidy_dagitty(dag)
+
+```
+
+Potential Models here
+
+```
+Y ~ X
+Y ~ X + A 
+Y ~ X + A + B
+Y ~ X + C
+Y ~ X + A + C
+Y ~ X + B + C
+```
+
+Which model we choose depends on what we want to look at.
+
+
+::: {.callout-tip}
+Some control variables are good some are bad
+:::
+
+## Bayesian data analysis
+
+Need to code for this type of analysis
+Amateur software engineering
+
+1. Define estimand: What are we trying to estimate
+2. Define model: First dag
+3. Use 1 and 2 to build a statistical model
+4. Simulate from 2, to validate that 3 yields 1
+5. Analysis 

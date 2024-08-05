@@ -1,0 +1,119 @@
+---
+Title: Intuitive Introduction to Proabiliy
+---
+
+## Estimating propotion of World covered in water.
+
+Going to 
+1. Define a generative model
+2. Define a specific estimand
+3. Design a statistical way to produce estimate
+4. Test (3) using (1)
+5. Analyse sample, summarise
+
+71% of the earth is covered in Water in actual fact.
+
+Let's start with 10 samples:
+```{r}
+N <- 10
+my_sample <- rbinom(n=N, size=1, 0.71)
+print(paste0(
+    "Proportion of water: ", sum(my_sample)/N)
+    )
+
+```
+
+Now lets think about how we measure p (proportion of water)
+
+* `p` prop water can't be measured
+* `W` water observations
+* `N` number tosses
+* `L` Land observations
+
+
+Causal Model:
+```{r}
+
+library(ggdag)
+library(dagitty)
+
+dag <-dagify(
+    W ~ N,
+    L ~ N,
+
+    W ~ p,
+    L ~ p
+
+)
+
+ggdag(dag, layout='circle')
+
+
+```
+
+N influeces W
+N influeces L
+
+To make generative, we have to write a function to represent:
+
+```
+W,L = f(p, N)
+```
+
+For each possible explanation of the sample
+
+Count all the ways the sample could happen.
+
+Explanations with more ways to produce the sample are more plausible 
+
+
+```{r}
+sim_globe <- function(p=0.7, N=9)
+{
+    sample(c("W",L), size=N, prob=p, replace=T)
+} 
+
+```
+
+
+```{r}
+library(tibble)
+library(readr)
+N <- 100
+my_sample <- rbinom(n=N, size=1, 0.71)
+print(paste0(
+    "Proportion of water: ", sum(my_sample)/N)
+    )
+
+my_data <- as_tibble(list(
+    y=my_sample
+))
+
+write_csv(my_data,'../data/water_land_samples.csv')
+```
+
+```{.stan includ='stan_files/01_water_land.stan'}
+```
+
+
+```{r}
+library(rstan)
+data_path <- '../data/water_land_samples.csv'
+stan_path <- '../stan_files/01_water_land.stan'
+
+data <- read_csv('../data/water_land_samples.csv')
+
+fit <- stan(file = stan_path, 
+    data = list(
+        y=data$y,
+        N=nrow(data)
+    ), 
+    warmup = 500, 
+    iter = 1000, 
+    chains = 4, 
+    cores = 2, 
+    thin = 1)
+
+    plot(fit)
+
+```

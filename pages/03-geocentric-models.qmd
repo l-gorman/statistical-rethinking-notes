@@ -1,0 +1,343 @@
+# Geocentric Models
+
+[Lecture](https://www.youtube.com/watch?v=tNOu-SEacNU&list=PLDcUM9US4XdPz-KxHM4XHt7uUVGWWVSus&index=3)
+
+
+* Not interested in the zig-zag wanderer analogy in lecture
+
+## Linear Regression
+
+* Special cases: ANOVA, ANCOVA, t-test...
+* Describes associations, makes predictions, but almost always mechanistically wrong
+* Often an unreasonably good approximation of associations
+* Nothing wrong with it, unless you presume it's an accurate mechanistic model of system you're studying
+* Using gaussian error model. A very general approach to how error comes into observations (rather than modelling all individual sources of error)
+
+## Gaussian distributions
+
+* 100 people flip a coin, heads move left tails move right. Overtime, will form a normal distribution.
+* Why are they so common/where do they come from? When simulating processes that add together random fluctuations, we get this distribtion. 
+* Least informative, contains no other information other than mean and variance. Most spread out distribution. (maximum entropy)
+* Model doesn't have to be empirically normally distributed for normal to be useful, it's a useful tool for estimating mean/variance.
+
+
+## Workflow
+
+- Question, State a question: descriptive or causal
+- Scientific model, Sketch causal assumptions: DAGs
+- Statistical model, Use sketch to define generative model: Code that generates synthetic observations
+- Model validation, Use generative model to build an estimator. Once we have the estimator we test it with synthetic data
+- Analysis, Analyse real data (maybe have to go back to step 2.)
+
+## Example
+
+### Question:
+
+association between adult weight and height
+
+### Scientific model: 
+height causally influeces weight.
+
+$$
+W = f(H) 
+$$
+
+
+```{r}
+library(ggdag)
+library(dagitty)
+
+dag <-dagify(
+    W ~ H
+)
+
+ggdag(dag, layout='circle')
+
+
+dag <-dagify(
+    W ~ H,
+    W ~ U
+)
+
+ggdag(dag, layout='circle')
+
+```
+
+Where U is unobserved
+
+### Generative Model
+
+1. Dynamic: Could use a mechanistic model. Mass and height derived from growth pattern and gaussian variation due to small summed fluctuations.
+
+2. Static: Imagine the association between weight and height, but no mechanism. Gaussian variation due to history
+
+Going with option 2
+
+$$
+W = \beta H + U
+$$
+
+
+### Generative Model
+
+
+```{r}
+
+sim_weight <- function(H, b, sd){
+    U <- rnorm(length(H), 0, sd)
+    W <- b*H + U
+    return(W)
+}
+```
+
+```{r}
+H <- runif(200, min=130, max=170) #Generate 200 heights between 130 and 170
+W <- sim_weight(H, b=0.5, sd=5)
+
+plot(W ~ H, col=2, lwd=3)
+```
+
+### Describuing models
+
+1. List variables in model (if gen or statist)
+2. Can be a deterministic or distributional function of other variables
+
+$$
+W_i = \beta H_i + U_i 
+$$
+$$
+U_i \sim Normal(0, \sigma) 
+$$
+$$
+H_i \sim Uniform(130, 170) 
+$$
+
+Reads as, for our generative model,
+Weight has a linear association to height, 
+with a coefficient beta and error term U.
+
+Our error, or other sources of variation, is
+normally distributed, with mean zero and standard deviation
+sigma.
+
+Our height is uniformly distributed between 130 and 170.
+Subscript $_i$ denotes individual observations, $=$ is deterministic, 
+$~$ is distributional.
+
+### Estimator
+
+We want to see how averag
+e weight changes with height
+
+$$
+E(W_i | H_i) = \alpha + \beta H_i
+$$ 
+
+
+### Posterior
+
+$$
+Pr(\alpha, \beta, \sigma | H_i, W_i) = \frac{Pr(W_i | H_i, \alpha, \beta, \sigma )Pr(\alpha, \beta, \sigma)}{Z}
+$$
+
+$$
+W_i \sim Normal(\mu _i, \sigma)
+$$
+$$
+\mu _i = \alpha + \beta H_i
+$$
+
+```{r}
+# see here for iteration in python
+# https://aaron-pickering.com/bayesian-regression-from-scratch/
+
+# see here for explanation of metropolis hastings MCMC
+# https://www.youtube.com/watch?app=desktop&v=OTO1DygELpY
+
+# Basic function to simulate data 
+# with a linear association
+# between height (H) and Weight (W).
+sim_weight <- function(H, b, sd){
+    U <- rnorm(length(H), 0, sd)
+    W <- b*H + U
+    return(W)
+}
+
+
+#-----------------------------------------------------------------------------------
+# Generating a sample 
+#-----------------------------------------------------------------------------------
+
+N_sample <- 200
+H <- runif(N_sample, min=130, max=170) #Generate 200 heights between 130 and 170
+W <- sim_weight(H, b=0.5, sd=5)
+
+# Saying that our prior knowledge if that
+# the parameters are normally distributed
+
+prior_mean_alpha <- 0 
+pior_sd_alpha <- 1
+
+prior_mean_beta <- 0
+pior_sd_beta <- 1
+
+prior_mean_sigma <- 0
+pior_sd_sigma <- 1
+
+n_iter <- 10000000
+
+# Setting up lists to save results
+alpha_all <- c()
+beta_all <- c()
+sigma_all <- c()
+posterior_probs_all <- c()
+
+
+for (iter in 1:n_iter){
+    # drawing proposal parameters from prior
+    if (length(alpha_all)==0){
+        old_alpha <- prior_mean_alpha
+        old_beta <- prior_mean_beta
+        old_sigma <- prior_mean_sigma
+    }else{
+        old_alpha <- alpha_all[length(alpha_all)]
+        old_beta <- beta_all[length(beta_all)]
+        old_sigma <- sigma_all[length(sigma_all)]
+    
+    }
+
+    proposal_alpha <- rnorm(1, old_alpha, pior_sd_alpha)
+    proposal_beta <- rnorm(1, old_beta, pior_sd_beta)
+    proposal_sigma <- abs(rnorm(1,old_sigma, pior_sd_sigma))
+
+
+    # probability of parameters 
+    prob_alpha <- dnorm(proposal_alpha, mean = old_alpha, sd = pior_sd_alpha, log=T)
+    prob_beta <- dnorm(proposal_beta, mean = old_beta, sd = pior_sd_beta, log=T)
+    prob_sigma <- dnorm(proposal_sigma, mean = old_sigma, sd = pior_sd_sigma, log=T) + log(2)
+
+    prior_prob <- prob_alpha + prob_beta + prob_sigma
+
+    # likelihood
+    prob_data <- 0
+    for (i in 1:N_sample){
+        mu_temp <- proposal_alpha + proposal_beta*H[i]
+        prob_weight <- dnorm(W[i], 
+                             mean = mu_temp,
+                             sd = proposal_sigma, 
+                             log=T)
+
+                
+        prob_data <- prob_data + prob_weight
+    }
+
+    posterior_prob <- prob_data + prior_prob
+
+    # acceptance/rejection
+    if (iter==1){
+        alpha_all <- c(alpha_all, proposal_alpha)
+        beta_all <- c(beta_all, proposal_beta)
+        sigma_all <- c(sigma_all, proposal_sigma)
+        posterior_probs_all <- c(posterior_probs_all,posterior_prob)
+
+    }
+    if (iter>1){
+        acceptance_ratio <-posterior_prob/posterior_probs_all[length(posterior_probs_all)]
+        accept_probability <- min(c(acceptance_ratio,1))
+        uniform_draw <- runif(1,0,1)
+
+        if (uniform_draw < accept_probability){
+            alpha_all <- c(alpha_all, proposal_alpha)
+            beta_all <- c(beta_all, proposal_beta)
+            sigma_all <- c(sigma_all, proposal_sigma)
+            posterior_probs_all <- c(posterior_probs_all,posterior_prob)
+        }
+
+        
+    }
+
+}
+
+```
+
+## Example  in Stan
+
+```{.stan include='stan_files/03_height_weight.stan'}
+```
+
+
+```{r}
+library(rstan)
+
+options(mc.cores = parallel::detectCores())
+rstan_options(auto_write = TRUE)
+
+sim_weight <- function(H, b, sd){
+    U <- rnorm(length(H), 0, sd)
+    W <- b*H + U
+    return(W)
+}
+
+N_sample <- 200
+H <- runif(N_sample, min=130, max=170) #Generate 200 heights between 130 and 170
+W <- sim_weight(H, b=0.5, sd=5)
+
+stanc("./stan_files/03_height_weight.stan")
+
+fit <- stan(file = "./stan_files/03_height_weight.stan", 
+            data = list(
+                N=N_sample,
+                H=H,
+                W=W
+            ), 
+            warmup = 500, 
+            iter = 1000, 
+            chains = 4, 
+            cores = 2, 
+            thin = 1)
+
+```
+
+```{r}
+library(dplyr)
+library(tibble)
+# library(ggdist)
+library(GGally)
+library(tidyr)
+library(tidybayes)
+all_draws <- rstan::extract(fit) |> 
+    as_tibble() |>
+    select(all_of(c('alpha', 'beta', 'sigma'))) 
+    
+
+all_draws <- rstan::extract(fit)
+# all_draws$W_rep |> as_tibble()
+# ggpairs(all_draws)
+
+rstan
+
+
+
+predictions <- spread_draws(fit, W_rep[i], H_rep[i])
+
+my_sample <- sample(1000, 10)
+
+predictions |>
+    filter(.chain==1) |>
+    filter(.draw %in% my_sample) |>
+ggplot( aes(x=H_rep, y=W_rep, group=.draw)) +
+    geom_line()
+
+
+
+
+
+
+
+```
+
+
+* Intercept and gradient are intimately related. 
+* Cannot interpret coefficients independently, but can push out posterior predictions
+
+
